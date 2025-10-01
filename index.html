@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Solicitação de Criativos</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f6f8;
+      margin: 0;
+      padding: 20px;
+    }
+    h1 {
+      text-align: center;
+      color: #333;
+    }
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr 2fr;
+      gap: 20px;
+    }
+    form {
+      background: #fff;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+    form label {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: bold;
+      color: #555;
+    }
+    form input, form textarea, form select {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 15px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      font-size: 14px;
+    }
+    form button {
+      background: #0073e6;
+      color: #fff;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    form button:hover { background: #005bb5; }
+    .requests {
+      background: #fff;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+    .request {
+      border-bottom: 1px solid #eee;
+      padding: 10px 0;
+    }
+    .request:last-child { border-bottom: none; }
+    .request h3 { margin: 0; color: #333; }
+    .request small { color: #888; }
+
+    /* Layouts em imagem */
+    .layouts {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+    .layout-option {
+      border: 2px solid #ccc;
+      border-radius: 10px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+    .layout-option img {
+      width: 100%;
+      height: 120px;
+      object-fit: cover;
+      display: block;
+    }
+    .layout-option:hover {
+      border-color: #0073e6;
+    }
+    .layout-option.selected {
+      border-color: #0073e6;
+      background: #eaf3ff;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Central de Solicitações YaaYoo</h1>
+  <div class="container">
+    <!-- Formulário -->
+    <form id="requestForm">
+      <label for="team">Equipe solicitante</label>
+      <select id="team" required>
+        <option value="">Selecione...</option>
+        <option value="Lazer">Lazer</option>
+        <option value="Experiências">Experiências</option>
+      </select>
+
+      <label for="title">Título da demanda</label>
+      <input type="text" id="title" required>
+
+      <label for="description">Descrição</label>
+      <textarea id="description" rows="4" required></textarea>
+
+      <label for="deadline">Prazo</label>
+      <input type="date" id="deadline" required>
+
+      <label for="type">Tipo de criativo</label>
+      <select id="type" required>
+        <option value="">Selecione...</option>
+        <option value="post">Post para redes sociais</option>
+        <option value="banner">Banner</option>
+        <option value="apresentacao">Apresentação</option>
+        <option value="outro">Outro</option>
+      </select>
+
+      <!-- Campo extra só para Banner -->
+      <div id="sizeSection" style="display:none;">
+        <label for="size">Tamanho do banner</label>
+        <select id="size">
+          <option value="">Selecione...</option>
+          <option value="TV">TV</option>
+          <option value="A4">A4</option>
+          <option value="TV Horizontal">TV Horizontal</option>
+          <option value="Todos">Todos</option>
+        </select>
+      </div>
+
+      <div id="layoutSection" style="display:none;">
+        <label>Escolha um layout</label>
+        <div class="layouts" id="layoutsContainer"></div>
+      </div>
+
+      <!-- Campos opcionais -->
+      <label for="material">Material complementar (link ou arquivo)</label>
+      <input type="text" id="material" placeholder="Cole o link ou referência">
+
+      <label for="local">Local</label>
+      <input type="text" id="local" placeholder="Ex: Auditório A, Salão de festas...">
+
+      <label for="horario">Horário</label>
+      <input type="time" id="horario">
+
+      <button type="submit">Enviar Solicitação</button>
+    </form>
+
+    <!-- Lista de solicitações -->
+    <div class="requests" id="requests">
+      <h2>Solicitações Recebidas</h2>
+      <p>Nenhuma solicitação ainda.</p>
+    </div>
+  </div>
+
+  <script>
+    const { jsPDF } = window.jspdf;
+    const form = document.getElementById("requestForm");
+    const requestsContainer = document.getElementById("requests");
+    const typeSelect = document.getElementById("type");
+    const sizeSection = document.getElementById("sizeSection");
+    const layoutSection = document.getElementById("layoutSection");
+    const layoutsContainer = document.getElementById("layoutsContainer");
+
+    let selectedLayout = null;
+    let selectedLayoutImg = null;
+    let requests = [];
+
+    // Layouts com imagens (placeholders)
+    const layoutsPorTipo = {
+      post: [
+        { name: "Layout A", img: "https://picsum.photos/200/120?random=1" },
+        { name: "Layout B", img: "https://picsum.photos/200/120?random=2" },
+        { name: "Layout C", img: "https://picsum.photos/200/120?random=3" },
+        { name: "Layout D", img: "https://picsum.photos/200/120?random=4" }
+      ],
+      banner: [
+        { name: "Layout E", img: "https://picsum.photos/200/120?random=5" },
+        { name: "Layout F", img: "https://picsum.photos/200/120?random=6" },
+        { name: "Layout G", img: "https://picsum.photos/200/120?random=7" },
+        { name: "Layout H", img: "https://picsum.photos/200/120?random=8" }
+      ],
+      apresentacao: [
+        { name: "Layout I", img: "https://picsum.photos/200/120?random=9" },
+        { name: "Layout J", img: "https://picsum.photos/200/120?random=10" },
+        { name: "Layout L", img: "https://picsum.photos/200/120?random=11" },
+        { name: "Layout M", img: "https://picsum.photos/200/120?random=12" }
+      ],
+      outro: [
+        { name: "Variante 1", img: "https://picsum.photos/200/120?random=13" },
+        { name: "Variante 2", img: "https://picsum.photos/200/120?random=14" },
+        { name: "Variante 3", img: "https://picsum.photos/200/120?random=15" },
+        { name: "Variante 4", img: "https://picsum.photos/200/120?random=16" }
+      ]
+    };
+
+    typeSelect.addEventListener("change", () => {
+      const tipo = typeSelect.value;
+      layoutsContainer.innerHTML = "";
+      selectedLayout = null;
+      selectedLayoutImg = null;
+
+      sizeSection.style.display = tipo === "banner" ? "block" : "none";
+
+      if (tipo && layoutsPorTipo[tipo]) {
+        layoutSection.style.display = "block";
+        layoutsPorTipo[tipo].forEach(layout => {
+          const div = document.createElement("div");
+          div.classList.add("layout-option");
+          div.innerHTML = `<img src="${layout.img}" alt="${layout.name}">`;
+          div.addEventListener("click", () => {
+            document.querySelectorAll(".layout-option").forEach(opt => opt.classList.remove("selected"));
+            div.classList.add("selected");
+            selectedLayout = layout.name;
+            selectedLayoutImg = layout.img;
+          });
+          layoutsContainer.appendChild(div);
+        });
+      } else {
+        layoutSection.style.display = "none";
+      }
+    });
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      if (!selectedLayout) {
+        alert("Selecione um layout antes de enviar.");
+        return;
+      }
+
+      const team = document.getElementById("team").value;
+      const title = document.getElementById("title").value;
+      const description = document.getElementById("description").value;
+      const deadline = document.getElementById("deadline").value;
+      const type = typeSelect.options[typeSelect.selectedIndex].text;
+      const size = typeSelect.value === "banner" ? document.getElementById("size").value : null;
+      const material = document.getElementById("material").value;
+      const local = document.getElementById("local").value;
+      const horario = document.getElementById("horario").value;
+
+      if (typeSelect.value === "banner" && !size) {
+        alert("Selecione o tamanho do banner.");
+        return;
+      }
+
+      const request = { team, title, description, deadline, type, layout: selectedLayout, layoutImg: selectedLayoutImg, size, material, local, horario };
+      requests.push(request);
+
+      renderRequests();
+      await gerarPDF(request);
+
+      form.reset();
+      layoutSection.style.display = "none";
+      sizeSection.style.display = "none";
+      selectedLayout = null;
+    });
+
+    function renderRequests() {
+      requestsContainer.innerHTML = "<h2>Solicitações Recebidas</h2>";
+      if (requests.length === 0) {
+        requestsContainer.innerHTML += "<p>Nenhuma solicitação ainda.</p>";
+        return;
+      }
+
+      requests.forEach(req => {
+        const div = document.createElement("div");
+        div.classList.add("request");
+        div.innerHTML = `
+          <h3>${req.title}</h3>
+          <p>${req.description}</p>
+          <small>
+            Equipe: ${req.team} | Prazo: ${req.deadline} | Tipo: ${req.type} | 
+            Layout: ${req.layout} ${req.size ? `| Tamanho: ${req.size}` : ""}
+          </small>
+        `;
+        requestsContainer.appendChild(div);
+      });
+    }
+
+    async function gerarPDF(req) {
+      const pdf = new jsPDF();
+      pdf.setFontSize(16);
+      pdf.text("SOLICITAÇÃO DE CRIATIVO", 20, 20);
+      pdf.setFontSize(12);
+      pdf.text(`Equipe: ${req.team}`, 20, 40);
+      pdf.text(`Título: ${req.title}`, 20, 50);
+      pdf.text(`Descrição: ${req.description}`, 20, 60);
+      pdf.text(`Prazo: ${req.deadline}`, 20, 70);
+      pdf.text(`Tipo: ${req.type}`, 20, 80);
+      pdf.text(`Layout: ${req.layout}`, 20, 90);
+      if (req.size) pdf.text(`Tamanho: ${req.size}`, 20, 100);
+      if (req.material) pdf.text(`Material complementar: ${req.material}`, 20, 110);
+      if (req.local) pdf.text(`Local: ${req.local}`, 20, 120);
+      if (req.horario) pdf.text(`Horário: ${req.horario}`, 20, 130);
+
+      if (req.layoutImg) {
+        const img = await fetch(req.layoutImg).then(r => r.blob()).then(blob => {
+          return new Promise(resolve => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.readAsDataURL(blob);
+          });
+        });
+        pdf.addImage(img, "JPEG", 20, 140, 100, 60);
+      }
+
+      pdf.save(`solicitacao_${req.title.replace(/\s+/g, "_")}.pdf`);
+    }
+  </script>
+
+</body>
+</html>
